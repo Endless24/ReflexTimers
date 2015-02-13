@@ -83,7 +83,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLi
 	if (!SetUpWindowClass ("1", 0, 0, 0)) {
 		exit(4); //error while registering window class
 	}
-	HWND hWnd = CreateWindowEx(WS_EX_TOPMOST, "1", "Game Info", NULL, 0, 0, 300, 300, NULL, NULL, hInstance, NULL);
+	HWND hWnd = CreateWindowEx(WS_EX_TOPMOST, "1", "Reflex Timers", NULL, 0, 0, 300, 300, NULL, NULL, hInstance, NULL);
 	if (!hWnd) {
 		exit(5); //window returned by CreateWindowEx() was NULL
 	}
