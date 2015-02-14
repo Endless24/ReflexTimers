@@ -1,34 +1,23 @@
+//windows interactivity
 #include <windows.h>
-#include <stdio.h>
 #include <tlhelp32.h>
-#include <time.h>
+
+#include <stdio.h>
 #include <conio.h>
+
 #include "itemTimer.h"
+
+//graphics
+/* SHIT'S FUCKED
+#pragma comment(lib, "d3d9.lib")
+#pragma comment(lib, "d3dx9.lib")
+#include <d3dx9.h>
+*/
 
 bool SetUpWindowClass (char*, int, int, int);
 LRESULT CALLBACK WindowProcedure (HWND, unsigned int, WPARAM, LPARAM);
 void generateGameItems();
-
-
-enum itemNames {
-	Railgun = 6, 
-	FiftyHealth = 42, 
-	MegaHealth = 43,
-	GreenArmor = 51,
-	YellowArmor = 52,
-	RedArmor = 53,
-	QuadDamage = 60
-};
-//I was lazy so I used millions of globals. Sorry.
-int g_itemIDs[] = {
-	Railgun,
-	FiftyHealth,
-	MegaHealth,
-	GreenArmor,
-	YellowArmor,
-	RedArmor,
-	QuadDamage
-};
+void DirectDrawTest(HWND*);
 
 struct gameItem {
 	int address;
@@ -47,10 +36,43 @@ struct node {
 	node* next;
 };
 
-HANDLE g_gameHandle; //this isn't a mistake, it needs to remain open for the entire runtime of the program
+enum itemNames {
+	Railgun = 6, 
+	FiftyHealth = 42, 
+	MegaHealth = 43,
+	GreenArmor = 51,
+	YellowArmor = 52,
+	RedArmor = 53,
+	QuadDamage = 60
+};
+
+//globals
+
+int g_itemIDs[] = {
+	Railgun,
+	FiftyHealth,
+	MegaHealth,
+	GreenArmor,
+	YellowArmor,
+	RedArmor,
+	QuadDamage
+};
+
+HANDLE g_gameHandle;
+int g_baseAddress = -1;
 
 node* g_gameItemsRoot = NULL;
-int g_baseAddress = -1;
+
+//D3D stuff
+/*
+IDirect3D9 *g_D3D=NULL;
+IDirect3DDevice9 *g_D3D_Device=NULL;
+D3DDISPLAYMODE g_d3ddisp;
+D3DPRESENT_PARAMETERS g_pp;
+ID3DXFont *g_font;
+*/
+
+
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLine, int iCmdShow) {
 
 	PROCESSENTRY32 entry;
@@ -92,6 +114,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLi
 	MSG uMsg;
 	generateGameItems(); //index all of the items so their states can be drawn
 	SetTimer(hWnd, 0, 50, NULL); //create a timer event that elapses every 50ms (running the code under WM_TIMER in the winproc below)
+	DirectDrawTest(&hWnd);
 	while (GetMessage (&uMsg, NULL, 0, 0) > 0) {
 		TranslateMessage (&uMsg);
 		DispatchMessage (&uMsg);
@@ -118,11 +141,11 @@ bool SetUpWindowClass (char* cpTitle, int iR, int iG, int iB) {
 	else return false;
 }
 /*---------------------------------------------------------------------
-	WINDOW MESSAGE HANDLER
+WINDOW MESSAGE HANDLER
 ---------------------------------------------------------------------*/
 LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, LPARAM lParam) {
 	switch (uiMsg) {
-	
+
 	case WM_TIMER: {
 		if(GetKeyState(VK_F4))
 			generateGameItems();
@@ -133,14 +156,14 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 			currentItem = &(currentNode->data);
 			ReadProcessMemory(g_gameHandle, (LPCVOID)(currentItem->address + 0x75), &(currentItem->isAvailable), sizeof(byte), &y);
 			if((currentItem->isAvailable && currentItem->isActive) || (currentItem->timer.getTimeRemaining() < 0)) {
-					currentItem->isActive = false;
-				}
+				currentItem->isActive = false;
+			}
 			if(!currentItem->isAvailable && !currentItem->isActive) {
 				currentItem->timer.startTimer();
 				currentItem->isActive = true;
 			}
-				
-				currentNode = currentNode->next;
+
+			currentNode = currentNode->next;
 		} 
 		InvalidateRect(hWnd, NULL, true); //redraw window
 				   }
@@ -153,9 +176,10 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 		CloseHandle(g_gameHandle);
 		exit(6); //window closed by user
 		/*---------------------------------------------------------------------
-		  DRAW WINDOW
+		DRAW WINDOW
 		---------------------------------------------------------------------*/
-	case WM_PAINT: {
+	case WM_PAINT: 
+		/*{
 		PAINTSTRUCT ps;
 		RECT rect;
 		rect.left = 5;
@@ -164,41 +188,41 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 		rect.right = 300;
 		HDC hDC = BeginPaint (hWnd, &ps);
 		HFONT font = CreateFont(24, 0, 0, 0, 300, false, false, false, 
-			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
-			DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+		DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
 		SelectObject( hDC, font );
 		SetBkColor(hDC, RGB(0, 0, 0));
 		gameItem currentItem;
 		node* currentNode = g_gameItemsRoot;
 		while(currentNode) {
-			currentItem = currentNode->data;
-			currentNode->data.timerColor = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
-			currentNode = currentNode->next;
+		currentItem = currentNode->data;
+		currentNode->data.timerColor = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
+		currentNode = currentNode->next;
 		}
 
 		currentNode = g_gameItemsRoot;
 		while(currentNode) {
-			currentItem = currentNode->data;
-			if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
-				char itemName[50];
-				sprintf_s(itemName, "%s: ", currentItem.itemName);
-				SetTextColor(hDC, currentItem.itemColor);
-				DrawText(hDC, itemName, -1, &rect, DT_NOCLIP);
+		currentItem = currentNode->data;
+		if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
+		char itemName[50];
+		sprintf_s(itemName, "%s: ", currentItem.itemName);
+		SetTextColor(hDC, currentItem.itemColor);
+		DrawText(hDC, itemName, -1, &rect, DT_NOCLIP);
 
-				rect.left += 180;
-				char timerText[20];
-				sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
-				SetTextColor(hDC, currentItem.timerColor);
-				DrawText(hDC, timerText, -1, &rect, DT_NOCLIP);
-				rect.left -= 180;
-				rect.top += 24;
-				rect.bottom += 24;
-			}
-			currentNode = currentNode->next;
+		rect.left += 180;
+		char timerText[20];
+		sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
+		SetTextColor(hDC, currentItem.timerColor);
+		DrawText(hDC, timerText, -1, &rect, DT_NOCLIP);
+		rect.left -= 180;
+		rect.top += 24;
+		rect.bottom += 24;
+		}
+		currentNode = currentNode->next;
 		}
 		EndPaint (hWnd, &ps);
-				   }
-				   break;
+		}*/
+		break;
 	}
 
 	return DefWindowProc (hWnd, uiMsg, wParam, lParam);
@@ -238,7 +262,7 @@ void generateGameItems() {
 				case RedArmor: newItem.itemName = "Red Armor"; newItem.itemColor = RGB(255,0,0); newItem.timer.setMaxTime(25); break;
 				case QuadDamage: newItem.itemName = "Quad Damage"; newItem.itemColor = RGB(204,0,204); newItem.timer.setMaxTime(90); break;
 				default: newItem.itemName = "Unknown Item"; newItem.itemColor = RGB(255,255,255); newItem.timer.setMaxTime(9999); break;
-				}//switch
+				}
 				//add each item to a singly linked list
 				if(!listStarted) {
 					node* firstNode = new node;
@@ -260,3 +284,37 @@ void generateGameItems() {
 	}//for(find item bases)
 }//function
 
+void DirectDrawTest(HWND* dxWnd) { /*
+	if(SUCCEEDED(g_D3D = Direct3DCreate9(D3D_SDK_VERSION))) {
+		if(SUCCEEDED(g_D3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &g_d3ddisp))) {
+			D3DCAPS9 d3dCaps;
+			if(SUCCEEDED(g_D3D->GetDeviceCaps( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &d3dCaps ) ) ) {
+				ZeroMemory(&g_pp, sizeof(g_pp));
+
+				g_pp.BackBufferFormat       = g_d3ddisp.Format;
+				g_pp.SwapEffect             = D3DSWAPEFFECT_DISCARD;
+				g_pp.Windowed               = TRUE;
+				g_pp.EnableAutoDepthStencil = TRUE;
+				g_pp.AutoDepthStencilFormat = D3DFMT_D16;
+
+				if(SUCCEEDED(g_D3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, *dxWnd,
+					D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+					&g_pp, &g_D3D_Device))) {
+						RECT rect;
+						rect.top = 5;
+						rect.left = 5;
+						rect.bottom = 305;
+						rect.right = 305;
+						if(SUCCEEDED(D3DXCreateFont( g_D3D_Device, 24, 0, FW_BOLD, 0, FALSE, DEFAULT_CHARSET, 
+							OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 
+							DEFAULT_PITCH | FF_DONTCARE, TEXT("Arial"), &g_font ))) {
+								g_font->DrawText(NULL, "test", -1, &rect, 0, D3DCOLOR_ARGB(255,255,255,255));
+								g_font->Release();
+						}
+						g_D3D_Device->Release();
+				}
+				g_D3D->Release();
+			}
+		}	
+	} */
+}
