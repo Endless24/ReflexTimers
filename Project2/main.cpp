@@ -8,16 +8,18 @@
 #include "itemTimer.h"
 
 //graphics
-/* SHIT'S FUCKED
 #pragma comment(lib, "d3d9.lib")
 #pragma comment(lib, "d3dx9.lib")
 #include <d3dx9.h>
-*/
+
 
 bool SetUpWindowClass (char*, int, int, int);
 LRESULT CALLBACK WindowProcedure (HWND, unsigned int, WPARAM, LPARAM);
 void generateGameItems();
-void DirectDrawTest(HWND*);
+
+void initD3D(HWND hWnd);    // sets up and initializes Direct3D
+void render_frame(void);    // renders a single frame
+void cleanD3D(void);    // closes Direct3D and releases memory
 
 struct gameItem {
 	int address;
@@ -64,13 +66,11 @@ int g_baseAddress = -1;
 node* g_gameItemsRoot = NULL;
 
 //D3D stuff
-/*
 IDirect3D9 *g_D3D=NULL;
 IDirect3DDevice9 *g_D3D_Device=NULL;
 D3DDISPLAYMODE g_d3ddisp;
 D3DPRESENT_PARAMETERS g_pp;
 ID3DXFont *g_font;
-*/
 
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLine, int iCmdShow) {
@@ -114,7 +114,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLi
 	MSG uMsg;
 	generateGameItems(); //index all of the items so their states can be drawn
 	SetTimer(hWnd, 0, 50, NULL); //create a timer event that elapses every 50ms (running the code under WM_TIMER in the winproc below)
-	DirectDrawTest(&hWnd);
+	initD3D(hWnd);
 	while (GetMessage (&uMsg, NULL, 0, 0) > 0) {
 		TranslateMessage (&uMsg);
 		DispatchMessage (&uMsg);
@@ -179,49 +179,49 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 		DRAW WINDOW
 		---------------------------------------------------------------------*/
 	case WM_PAINT: 
-		/*{
-		PAINTSTRUCT ps;
-		RECT rect;
-		rect.left = 5;
-		rect.top = 5;
-		rect.bottom = 29;
-		rect.right = 300;
-		HDC hDC = BeginPaint (hWnd, &ps);
-		HFONT font = CreateFont(24, 0, 0, 0, 300, false, false, false, 
-		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
-		DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
-		SelectObject( hDC, font );
-		SetBkColor(hDC, RGB(0, 0, 0));
-		gameItem currentItem;
-		node* currentNode = g_gameItemsRoot;
-		while(currentNode) {
-		currentItem = currentNode->data;
-		currentNode->data.timerColor = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
-		currentNode = currentNode->next;
-		}
+		{
+			PAINTSTRUCT ps;
+			RECT rect;
+			rect.left = 5;
+			rect.top = 5;
+			rect.bottom = 29;
+			rect.right = 300;
+			HDC hDC = BeginPaint (hWnd, &ps);
+			HFONT font = CreateFont(24, 0, 0, 0, 300, false, false, false, 
+				DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+				DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
+			SelectObject( hDC, font );
+			SetBkColor(hDC, RGB(0, 0, 0));
+			gameItem currentItem;
+			node* currentNode = g_gameItemsRoot;
+			while(currentNode) {
+				currentItem = currentNode->data;
+				currentNode->data.timerColor = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
+				currentNode = currentNode->next;
+			}
 
-		currentNode = g_gameItemsRoot;
-		while(currentNode) {
-		currentItem = currentNode->data;
-		if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
-		char itemName[50];
-		sprintf_s(itemName, "%s: ", currentItem.itemName);
-		SetTextColor(hDC, currentItem.itemColor);
-		DrawText(hDC, itemName, -1, &rect, DT_NOCLIP);
+			currentNode = g_gameItemsRoot;
+			while(currentNode) {
+				currentItem = currentNode->data;
+				if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
+					char itemName[50];
+					sprintf_s(itemName, "%s: ", currentItem.itemName);
+					SetTextColor(hDC, currentItem.itemColor);
+					DrawText(hDC, itemName, -1, &rect, DT_NOCLIP);
 
-		rect.left += 180;
-		char timerText[20];
-		sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
-		SetTextColor(hDC, currentItem.timerColor);
-		DrawText(hDC, timerText, -1, &rect, DT_NOCLIP);
-		rect.left -= 180;
-		rect.top += 24;
-		rect.bottom += 24;
+					rect.left += 180;
+					char timerText[20];
+					sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
+					SetTextColor(hDC, currentItem.timerColor);
+					DrawText(hDC, timerText, -1, &rect, DT_NOCLIP);
+					rect.left -= 180;
+					rect.top += 24;
+					rect.bottom += 24;
+				}
+				currentNode = currentNode->next;
+			}
+			EndPaint (hWnd, &ps);
 		}
-		currentNode = currentNode->next;
-		}
-		EndPaint (hWnd, &ps);
-		}*/
 		break;
 	}
 
@@ -284,37 +284,47 @@ void generateGameItems() {
 	}//for(find item bases)
 }//function
 
-void DirectDrawTest(HWND* dxWnd) { /*
-	if(SUCCEEDED(g_D3D = Direct3DCreate9(D3D_SDK_VERSION))) {
-		if(SUCCEEDED(g_D3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT, &g_d3ddisp))) {
-			D3DCAPS9 d3dCaps;
-			if(SUCCEEDED(g_D3D->GetDeviceCaps( D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &d3dCaps ) ) ) {
-				ZeroMemory(&g_pp, sizeof(g_pp));
+// this function initializes and prepares Direct3D for use
+void initD3D(HWND hWnd)
+{
+    g_D3D = Direct3DCreate9(D3D_SDK_VERSION);    // create the Direct3D interface
 
-				g_pp.BackBufferFormat       = g_d3ddisp.Format;
-				g_pp.SwapEffect             = D3DSWAPEFFECT_DISCARD;
-				g_pp.Windowed               = TRUE;
-				g_pp.EnableAutoDepthStencil = TRUE;
-				g_pp.AutoDepthStencilFormat = D3DFMT_D16;
+    D3DPRESENT_PARAMETERS d3dpp;    // create a struct to hold various device information
 
-				if(SUCCEEDED(g_D3D->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, *dxWnd,
-					D3DCREATE_SOFTWARE_VERTEXPROCESSING,
-					&g_pp, &g_D3D_Device))) {
-						RECT rect;
-						rect.top = 5;
-						rect.left = 5;
-						rect.bottom = 305;
-						rect.right = 305;
-						if(SUCCEEDED(D3DXCreateFont( g_D3D_Device, 24, 0, FW_BOLD, 0, FALSE, DEFAULT_CHARSET, 
-							OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 
-							DEFAULT_PITCH | FF_DONTCARE, TEXT("Arial"), &g_font ))) {
-								g_font->DrawText(NULL, "test", -1, &rect, 0, D3DCOLOR_ARGB(255,255,255,255));
-								g_font->Release();
-						}
-						g_D3D_Device->Release();
-				}
-				g_D3D->Release();
-			}
-		}	
-	} */
+    ZeroMemory(&d3dpp, sizeof(d3dpp));    // clear out the struct for use
+    d3dpp.Windowed = TRUE;    // program windowed, not fullscreen
+    d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;    // discard old frames
+    d3dpp.hDeviceWindow = hWnd;    // set the window to be used by Direct3D
+
+    // create a device class using this information and information from the d3dpp stuct
+	g_D3D->CreateDevice(D3DADAPTER_DEFAULT,
+                      D3DDEVTYPE_HAL,
+                      hWnd,
+                      D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+                      &d3dpp,
+                      &g_D3D_Device);
+	render_frame();
+	cleanD3D();
+}
+
+// this is the function used to render a single frame
+void render_frame(void)
+{
+    // clear the window to a deep blue
+    g_D3D_Device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 40, 100), 1.0f, 0);
+
+    g_D3D_Device->BeginScene();    // begins the 3D scene
+
+    // do 3D rendering on the back buffer here
+
+    g_D3D_Device->EndScene();    // ends the 3D scene
+
+    g_D3D_Device->Present(NULL, NULL, NULL, NULL);    // displays the created frame
+}
+
+// this is the function that cleans up Direct3D and COM
+void cleanD3D(void)
+{
+    g_D3D_Device->Release();    // close and release the 3D device
+    g_D3D->Release();    // close and release Direct3D
 }
