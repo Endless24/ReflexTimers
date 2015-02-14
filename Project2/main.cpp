@@ -17,9 +17,9 @@ bool SetUpWindowClass (char*, int, int, int);
 LRESULT CALLBACK WindowProcedure (HWND, unsigned int, WPARAM, LPARAM);
 void generateGameItems();
 
-void initD3D(HWND hWnd);    // sets up and initializes Direct3D
-void render_frame(void);    // renders a single frame
-void cleanD3D(void);    // closes Direct3D and releases memory
+void initD3D(HWND hWnd);    // initializes d3d
+void render(); //renders one frame when called
+void cleanD3D(void); //closes and destroys d3d stuff
 
 struct gameItem {
 	int address;
@@ -28,8 +28,8 @@ struct gameItem {
 	bool isActive;
 
 	char* itemName;
-	COLORREF itemColor;
-	COLORREF timerColor;
+	D3DCOLOR itemColor;
+	D3DCOLOR timerColor;
 	itemTimer timer;
 };
 
@@ -71,6 +71,7 @@ IDirect3DDevice9 *g_D3D_Device=NULL;
 D3DDISPLAYMODE g_d3ddisp;
 D3DPRESENT_PARAMETERS g_pp;
 ID3DXFont *g_font;
+bool g_testbool = false;
 
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLine, int iCmdShow) {
@@ -113,13 +114,15 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLi
 	ShowWindow (hWnd, SW_SHOW);
 	MSG uMsg;
 	generateGameItems(); //index all of the items so their states can be drawn
-	SetTimer(hWnd, 0, 50, NULL); //create a timer event that elapses every 50ms (running the code under WM_TIMER in the winproc below)
+	SetTimer(hWnd, 0, 50, NULL); //handles checking item states and watching for input
 	initD3D(hWnd);
 	while (GetMessage (&uMsg, NULL, 0, 0) > 0) {
 		TranslateMessage (&uMsg);
 		DispatchMessage (&uMsg);
+		render();
 	}
 	CloseHandle(g_gameHandle); //Window has stopped receiving messages. This should be unreachable but we'll clean up anyway
+	cleanD3D();
 	return 0;
 }
 
@@ -165,7 +168,6 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 
 			currentNode = currentNode->next;
 		} 
-		InvalidateRect(hWnd, NULL, true); //redraw window
 				   }
 				   break;
 
@@ -180,6 +182,10 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 		---------------------------------------------------------------------*/
 	case WM_PAINT: 
 		{
+			// clear the window to a deep blue
+
+
+			/*
 			PAINTSTRUCT ps;
 			RECT rect;
 			rect.left = 5;
@@ -188,40 +194,43 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 			rect.right = 300;
 			HDC hDC = BeginPaint (hWnd, &ps);
 			HFONT font = CreateFont(24, 0, 0, 0, 300, false, false, false, 
-				DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
-				DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
+			DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, 
+			DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
 			SelectObject( hDC, font );
 			SetBkColor(hDC, RGB(0, 0, 0));
 			gameItem currentItem;
 			node* currentNode = g_gameItemsRoot;
 			while(currentNode) {
-				currentItem = currentNode->data;
-				currentNode->data.timerColor = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
-				currentNode = currentNode->next;
+			currentItem = currentNode->data;
+			currentNode->data.timerColor = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
+			currentNode = currentNode->next;
 			}
 
 			currentNode = g_gameItemsRoot;
 			while(currentNode) {
-				currentItem = currentNode->data;
-				if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
-					char itemName[50];
-					sprintf_s(itemName, "%s: ", currentItem.itemName);
-					SetTextColor(hDC, currentItem.itemColor);
-					DrawText(hDC, itemName, -1, &rect, DT_NOCLIP);
+			currentItem = currentNode->data;
+			if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
+			char itemName[50];
+			sprintf_s(itemName, "%s: ", currentItem.itemName);
+			SetTextColor(hDC, currentItem.itemColor);
+			DrawText(hDC, itemName, -1, &rect, DT_NOCLIP);
 
-					rect.left += 180;
-					char timerText[20];
-					sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
-					SetTextColor(hDC, currentItem.timerColor);
-					DrawText(hDC, timerText, -1, &rect, DT_NOCLIP);
-					rect.left -= 180;
-					rect.top += 24;
-					rect.bottom += 24;
-				}
-				currentNode = currentNode->next;
+			rect.left += 180;
+			char timerText[20];
+			sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
+			SetTextColor(hDC, currentItem.timerColor);
+			DrawText(hDC, timerText, -1, &rect, DT_NOCLIP);
+			rect.left -= 180;
+			rect.top += 24;
+			rect.bottom += 24;
+			}
+			currentNode = currentNode->next;
 			}
 			EndPaint (hWnd, &ps);
+			*/
 		}
+		break;
+	case WM_ERASEBKGND:
 		break;
 	}
 
@@ -254,14 +263,14 @@ void generateGameItems() {
 		for(int j = 0; j < sizeof(g_itemIDs)/4; j++) { //check if itemID is recognized
 			if(newItem.itemID == g_itemIDs[j]) { //if so, which one?
 				switch(newItem.itemID) { //match it up to a name, color, and respawn time (i.e. armors are 25 as of the writing)
-				case Railgun: newItem.itemName = "Railgun"; newItem.itemColor = RGB(255, 255, 255); newItem.timer.setMaxTime(10); break;
-				case FiftyHealth: newItem.itemName = "50 Health"; newItem.itemColor = RGB(204,102,0); newItem.timer.setMaxTime(25); break;
-				case MegaHealth: newItem.itemName = "Mega Health"; newItem.itemColor = RGB(51,255,255); newItem.timer.setMaxTime(30); break;
-				case GreenArmor: newItem.itemName = "Green Armor"; newItem.itemColor = RGB(0,255,0); newItem.timer.setMaxTime(25); break;
-				case YellowArmor: newItem.itemName = "Yellow Armor"; newItem.itemColor = RGB(255,255,0); newItem.timer.setMaxTime(25); break;
-				case RedArmor: newItem.itemName = "Red Armor"; newItem.itemColor = RGB(255,0,0); newItem.timer.setMaxTime(25); break;
-				case QuadDamage: newItem.itemName = "Quad Damage"; newItem.itemColor = RGB(204,0,204); newItem.timer.setMaxTime(90); break;
-				default: newItem.itemName = "Unknown Item"; newItem.itemColor = RGB(255,255,255); newItem.timer.setMaxTime(9999); break;
+				case Railgun: newItem.itemName = "Railgun"; newItem.itemColor = D3DCOLOR_XRGB(255, 255, 255); newItem.timer.setMaxTime(10); break;
+				case FiftyHealth: newItem.itemName = "50 Health"; newItem.itemColor = D3DCOLOR_XRGB(204,102,0); newItem.timer.setMaxTime(25); break;
+				case MegaHealth: newItem.itemName = "Mega Health"; newItem.itemColor = D3DCOLOR_XRGB(51,255,255); newItem.timer.setMaxTime(30); break;
+				case GreenArmor: newItem.itemName = "Green Armor"; newItem.itemColor = D3DCOLOR_XRGB(0,255,0); newItem.timer.setMaxTime(25); break;
+				case YellowArmor: newItem.itemName = "Yellow Armor"; newItem.itemColor = D3DCOLOR_XRGB(255,255,0); newItem.timer.setMaxTime(25); break;
+				case RedArmor: newItem.itemName = "Red Armor"; newItem.itemColor = D3DCOLOR_XRGB(255,0,0); newItem.timer.setMaxTime(25); break;
+				case QuadDamage: newItem.itemName = "Quad Damage"; newItem.itemColor = D3DCOLOR_XRGB(204,0,204); newItem.timer.setMaxTime(90); break;
+				default: newItem.itemName = "Unknown Item"; newItem.itemColor = D3DCOLOR_XRGB(255,255,255); newItem.timer.setMaxTime(9999); break;
 				}
 				//add each item to a singly linked list
 				if(!listStarted) {
@@ -284,47 +293,75 @@ void generateGameItems() {
 	}//for(find item bases)
 }//function
 
-// this function initializes and prepares Direct3D for use
 void initD3D(HWND hWnd)
 {
-    g_D3D = Direct3DCreate9(D3D_SDK_VERSION);    // create the Direct3D interface
+	g_D3D = Direct3DCreate9(D3D_SDK_VERSION);
 
-    D3DPRESENT_PARAMETERS d3dpp;    // create a struct to hold various device information
+	D3DPRESENT_PARAMETERS d3dpp;    // device info
 
-    ZeroMemory(&d3dpp, sizeof(d3dpp));    // clear out the struct for use
-    d3dpp.Windowed = TRUE;    // program windowed, not fullscreen
-    d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;    // discard old frames
-    d3dpp.hDeviceWindow = hWnd;    // set the window to be used by Direct3D
+	ZeroMemory(&d3dpp, sizeof(d3dpp));
+	d3dpp.Windowed = TRUE;
+	d3dpp.SwapEffect = D3DSWAPEFFECT_DISCARD;
+	d3dpp.hDeviceWindow = hWnd;
 
-    // create a device class using this information and information from the d3dpp stuct
+	// create a device class using this information and information from the d3dpp stuct
 	g_D3D->CreateDevice(D3DADAPTER_DEFAULT,
-                      D3DDEVTYPE_HAL,
-                      hWnd,
-                      D3DCREATE_SOFTWARE_VERTEXPROCESSING,
-                      &d3dpp,
-                      &g_D3D_Device);
-	render_frame();
-	cleanD3D();
+		D3DDEVTYPE_HAL,
+		hWnd,
+		D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+		&d3dpp,
+		&g_D3D_Device);
+
+	D3DXCreateFont(g_D3D_Device,  22, 0, FW_NORMAL, 1, false, 
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 
+		DEFAULT_PITCH|FF_DONTCARE, "Arial", &g_font);
 }
 
-// this is the function used to render a single frame
-void render_frame(void)
+void cleanD3D()
 {
-    // clear the window to a deep blue
-    g_D3D_Device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_XRGB(0, 40, 100), 1.0f, 0);
-
-    g_D3D_Device->BeginScene();    // begins the 3D scene
-
-    // do 3D rendering on the back buffer here
-
-    g_D3D_Device->EndScene();    // ends the 3D scene
-
-    g_D3D_Device->Present(NULL, NULL, NULL, NULL);    // displays the created frame
+	g_D3D_Device->Release();
+	g_D3D->Release();
 }
 
-// this is the function that cleans up Direct3D and COM
-void cleanD3D(void)
-{
-    g_D3D_Device->Release();    // close and release the 3D device
-    g_D3D->Release();    // close and release Direct3D
+void render() {
+	g_D3D_Device->BeginScene();    // begin building frame here
+	g_D3D_Device->Clear(0, NULL, D3DCLEAR_TARGET, D3DCOLOR_ARGB(0, 0, 0, 0), 1.0f, 0);
+	RECT rect;
+	rect.left = 5;
+	rect.top = 5;
+	rect.bottom = 29;
+	rect.right = 300;
+
+	gameItem currentItem;
+	node* currentNode = g_gameItemsRoot;
+	while(currentNode) {
+		currentItem = currentNode->data;
+		COLORREF temp = RGB(currentItem.timer.getTimeRemainingRatio()*255, 1-currentItem.timer.getTimeRemainingRatio()*255, 0);
+		currentNode->data.timerColor = D3DCOLOR_XRGB(GetRValue(temp), GetGValue(temp), GetBValue(temp));
+		currentNode = currentNode->next;
+	}
+
+	currentNode = g_gameItemsRoot;
+	while(currentNode) {
+		currentItem = currentNode->data;
+		if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
+			char itemName[50];
+			sprintf_s(itemName, "%s: ", currentItem.itemName);
+			g_font->DrawTextA(NULL, itemName, -1, &rect, DT_NOCLIP, currentItem.itemColor);
+
+			rect.left += 180;
+			char timerText[20];
+			sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
+			g_font->DrawTextA(NULL, timerText, -1, &rect, DT_NOCLIP, currentItem.timerColor);
+			rect.left -= 180;
+			rect.top += 24;
+			rect.bottom += 24;
+		}
+		currentNode = currentNode->next;
+	}
+
+
+	g_D3D_Device->EndScene();    // finish building frame
+	g_D3D_Device->Present(NULL, NULL, NULL, NULL);    // display frame
+
 }
