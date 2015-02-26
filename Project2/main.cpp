@@ -62,6 +62,7 @@ int g_itemIDs[] = {
 
 HANDLE g_gameHandle;
 int g_baseAddress = -1;
+const int g_staticarraypointeroffset = 0x009E9D0C; //reflex.exe + whatever points to the array of game objects
 
 node* g_gameItemsRoot = NULL;
 
@@ -100,7 +101,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLi
 				} else { exit(2); } //unable to index target process modules
 			}
 		}
-	} else { exit(-1); } //couldn't find any process
+	} else { exit(-1); } //couldn't find -any- process
 
 
 	if (!SetUpWindowClass ("1", 0, 0, 0)) {
@@ -119,7 +120,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLi
 	while (GetMessage (&uMsg, NULL, 0, 0) > 0) {
 		TranslateMessage (&uMsg);
 		DispatchMessage (&uMsg);
-		render();
+		render(); //every time we get done with a message, render a frame
 	}
 	CloseHandle(g_gameHandle); //Window has stopped receiving messages. This should be unreachable but we'll clean up anyway
 	cleanD3D();
@@ -182,10 +183,7 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 		---------------------------------------------------------------------*/
 	case WM_PAINT: 
 		{
-			// clear the window to a deep blue
-
-
-			/*
+			/* below is the old rendering setup
 			PAINTSTRUCT ps;
 			RECT rect;
 			rect.left = 5;
@@ -252,7 +250,7 @@ void generateGameItems() {
 	newItem.isAvailable = false;
 	node* lastAdded = (node*)NULL;
 	int currentPointer;
-	int staticPtrAbsoluteAddress = 0x99DD7C + g_baseAddress; //static pointer to an array of pointers that point to game objects
+	int staticPtrAbsoluteAddress = g_staticarraypointeroffset + g_baseAddress; //static pointer to an array of pointers that point to game objects
 	SIZE_T y;
 
 	ReadProcessMemory(g_gameHandle, (LPCVOID)staticPtrAbsoluteAddress, &currentPointer, sizeof(int), &y); //now pointing at base of array of pointers
@@ -262,7 +260,7 @@ void generateGameItems() {
 		ReadProcessMemory(g_gameHandle, (LPCVOID)(newItem.address + 0x74), &newItem.itemID, sizeof(byte), &y); //the internal ID of the item (see "itemNames")
 		for(int j = 0; j < sizeof(g_itemIDs)/4; j++) { //check if itemID is recognized
 			if(newItem.itemID == g_itemIDs[j]) { //if so, which one?
-				switch(newItem.itemID) { //match it up to a name, color, and respawn time (i.e. armors are 25 as of the writing)
+				switch(newItem.itemID) { //match it up to a name, color, and respawn time (e.g. armors are 25 as of the writing)
 				case Railgun: newItem.itemName = "Railgun"; newItem.itemColor = D3DCOLOR_XRGB(255, 255, 255); newItem.timer.setMaxTime(10); break;
 				case FiftyHealth: newItem.itemName = "50 Health"; newItem.itemColor = D3DCOLOR_XRGB(204,102,0); newItem.timer.setMaxTime(25); break;
 				case MegaHealth: newItem.itemName = "Mega Health"; newItem.itemColor = D3DCOLOR_XRGB(51,255,255); newItem.timer.setMaxTime(30); break;
