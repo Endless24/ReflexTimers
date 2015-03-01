@@ -310,9 +310,9 @@ void initD3D(HWND hWnd)
 		&d3dpp,
 		&g_D3D_Device);
 
-	D3DXCreateFont(g_D3D_Device,  22, 0, FW_NORMAL, 1, false, 
-		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, 
-		DEFAULT_PITCH|FF_DONTCARE, "Arial", &g_font);
+	D3DXCreateFont(g_D3D_Device,  32, 0, 1000, 1, false, 
+		DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLEARTYPE_QUALITY, 
+		DEFAULT_PITCH|FF_ROMAN, "Times New Roman", &g_font);
 }
 
 void cleanD3D()
@@ -328,7 +328,7 @@ void render() {
 	rect.left = 5;
 	rect.top = 5;
 	rect.bottom = 29;
-	rect.right = 300;
+	rect.right = 280;
 
 	gameItem currentItem;
 	node* currentNode = g_gameItemsRoot;
@@ -349,11 +349,11 @@ void render() {
 
 			rect.left += 180;
 			char timerText[20];
-			sprintf_s(timerText, "%f\n", currentItem.timer.getTimeRemaining());
-			g_font->DrawTextA(NULL, timerText, -1, &rect, DT_NOCLIP, currentItem.timerColor);
+			sprintf_s(timerText, "%.1f\n", currentItem.timer.getTimeRemaining());
+			g_font->DrawTextA(NULL, timerText, -1, &rect, DT_RIGHT | DT_NOCLIP, currentItem.timerColor);
 			rect.left -= 180;
-			rect.top += 24;
-			rect.bottom += 24;
+			rect.top += 32;
+			rect.bottom += 32;
 		}
 		currentNode = currentNode->next;
 	}
