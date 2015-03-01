@@ -63,6 +63,7 @@ int g_itemIDs[] = {
 HANDLE g_gameHandle;
 int g_baseAddress = -1;
 const int g_staticarraypointeroffset = 0x009E9D0C; //reflex.exe + whatever points to the array of game objects
+bool g_quadExists = false; //whether or not to time the quad
 
 node* g_gameItemsRoot = NULL;
 
@@ -72,7 +73,6 @@ IDirect3DDevice9 *g_D3D_Device=NULL;
 D3DDISPLAYMODE g_d3ddisp;
 D3DPRESENT_PARAMETERS g_pp;
 ID3DXFont *g_font;
-bool g_testbool = false;
 
 
 int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpsCmdLine, int iCmdShow) {
@@ -153,6 +153,10 @@ LRESULT CALLBACK WindowProcedure (HWND hWnd, unsigned int uiMsg, WPARAM wParam, 
 	case WM_TIMER: {
 		if(GetKeyState(VK_F4))
 			generateGameItems();
+		if(GetKeyState(VK_F5))
+			g_quadExists = false;
+		if(GetKeyState(VK_F6))
+			g_quadExists = true;
 		SIZE_T y;
 		node* currentNode = g_gameItemsRoot;
 		gameItem* currentItem;
@@ -342,6 +346,10 @@ void render() {
 	currentNode = g_gameItemsRoot;
 	while(currentNode) {
 		currentItem = currentNode->data;
+		if(currentItem.itemID == QuadDamage && !g_quadExists) {
+			currentNode = currentNode->next;
+			continue;
+		}
 		if(currentItem.isActive && currentItem.timer.getTimeRemaining() > 0) {
 			char itemName[50];
 			sprintf_s(itemName, "%s: ", currentItem.itemName);
@@ -349,7 +357,7 @@ void render() {
 
 			rect.left += 180;
 			char timerText[20];
-			sprintf_s(timerText, "%.1f\n", currentItem.timer.getTimeRemaining());
+			sprintf_s(timerText, "%.1f\n", ((int)(100 * currentItem.timer.getTimeRemaining())) / 100.0); //hackish way of truncating instead of rounding
 			g_font->DrawTextA(NULL, timerText, -1, &rect, DT_RIGHT | DT_NOCLIP, currentItem.timerColor);
 			rect.left -= 180;
 			rect.top += 32;
